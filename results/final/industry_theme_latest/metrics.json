@@ -1,0 +1,14 @@
+{
+  "ic_mean": 0.025522005770566965,
+  "ic_std": 0.2711305971286483,
+  "ic_ir": 0.0941317801858308,
+  "strategy_cum_return": 0.09286822519149673,
+  "benchmark_cum_return": -0.060835484250485905,
+  "excess_cum_return": -0.045645710372830384,
+  "strategy_avg_daily_return": 0.00020572369764932044,
+  "strategy_vol_daily": 0.016553341276710553,
+  "resolved_end_date": "2026-05-08",
+  "universe_size": 38,
+  "rebalance_freq": "monthly",
+  "fee_bps": 10.0
+}
