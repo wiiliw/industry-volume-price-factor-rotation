@@ -3,3 +3,4 @@ __pycache__/
 scr/__pycache__/
 cache/
 *.pyc
+artifacts/

@@ -5,6 +5,7 @@ LastEditors: hugo2046 shen.lan123@gmail.com
 LastEditTime: 2023-01-12 17:08:24
 Description: 
 """
+from __future__ import annotations
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -36,7 +37,8 @@ except ImportError:
 def _ema(series: pd.Series, window: int) -> pd.Series:
     cleaned = series.dropna()
     if cleaned.empty:
-        return np.nan
+        # 空/全NaN列返回同形状 NaN 序列,保证 DataFrame.apply 结果仍是 DataFrame
+        return series * np.nan
     if _talib_ema is not None:
         return _talib_ema(cleaned, window)
     return cleaned.ewm(span=window, adjust=False).mean()
@@ -86,7 +88,7 @@ class Factor_Calculator(BaseEstimator, TransformerMixin):
         ).div(self.close_df)
 
         return (step_a - step_a.shift(window2)).apply(
-            lambda x: np.nan if x.dropna().empty else _ema(x, window)
+            lambda x: _ema(x, window)  # _ema 对空列已返回同形状 NaN 序列
         )
 
     def diff_period_mom(
