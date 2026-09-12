@@ -510,6 +510,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--entry-dip", type=float, default=0.02, help="入场限价折扣:信号收盘-2% 挂单等回调")
     parser.add_argument("--entry-window", type=int, default=10, help="限价单有效期(交易日),未成交改市价建仓")
+    parser.add_argument("--fundflow-warn", type=float, default=0.10, help="资金流验证器:持仓20日份额流入超过该值标记拥挤警示(仅提示不改决策)")
     parser.add_argument(
         "--broad-min-edge",
         type=float,
@@ -669,6 +670,43 @@ def main() -> None:
         limit_orders.to_csv(output_dir / "limit_orders.csv", index=False)
     except Exception as exc:  # 执行表只是辅助输出,失败不阻断主流程
         print(f"[limit_orders] 生成失败: {exc}")
+
+    # ---- 资金流验证器监控(文章框架:资金流只做验证器,不改决策) ----
+    # 对最新持仓输出 20 日份额变化率;流入>阈值(默认10%)的持仓标"拥挤警示"。
+    # 实测:份额20日变化率对未来收益 pooled IC = -0.0655(反向),>10%流入的持仓降权50%
+    # 仅在少数事件月有效(20%/30%阈值无效),故只提示、不改选券与权重。
+    try:
+        pro_ff = get_tushare_pro(token=args.token, proxy_url=args.proxy_url, timeout=30)
+        rb_last_dates = rotation.index[rotation["rebalanced"] == 1]
+        d_sig = rb_last_dates[-1]
+        hold_chk = [h for h in str(rotation.loc[d_sig, "holdings"]).split(",") if h]
+        rows_chk = []
+        for c in hold_chk:
+            try:
+                fs = pro.fund_share(ts_code=c, start_date=(d_sig - pd.Timedelta(days=90)).strftime("%Y%m%d"),
+                                    end_date=d_sig.strftime("%Y%m%d"))
+                if fs is None or fs.empty:
+                    continue
+                fs["trade_date"] = pd.to_datetime(fs["trade_date"])
+                s = fs.sort_values("trade_date").set_index("trade_date")["fd_share"].astype(float)
+                s = s[~s.index.duplicated()]
+                chg = (s.iloc[-1] / s.iloc[-21] - 1) if len(s) >= 21 else np.nan
+                rows_chk.append({
+                    "ts_code": c,
+                    "name": name_map2.get(c, c),
+                    "weight": float(dict(zip(hold_last, w_last)).get(c, np.nan)),
+                    "share_chg20": round(float(chg), 4) if np.isfinite(chg) else np.nan,
+                    "crowding_warn": ("拥挤警示" if (np.isfinite(chg) and chg >= args.fundflow_warn) else ""),
+                })
+            except Exception:
+                continue
+        if rows_chk:
+            pd.DataFrame(rows_chk).to_csv(output_dir / "fundflow_check.csv", index=False)
+            warn_list = [r for r in rows_chk if r["crowding_warn"]]
+            if warn_list:
+                print("[fundflow] 拥挤警示:", ", ".join(r["ts_code"] for r in warn_list))
+    except Exception as exc:
+        print(f"[fundflow_check] 生成失败: {exc}")
 
     benchmark_ret = build_benchmark_series(benchmark_df)
     benchmark_ret.to_csv(output_dir / "benchmark_returns.csv", header=["benchmark_ret"])
