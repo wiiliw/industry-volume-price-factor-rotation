@@ -81,6 +81,8 @@
 每月首个交易日收盘后:
 
 1. 运行 `python reproduce_tushare.py`(一键:数据增量→因子→模型→调仓→权重→风控)
+2. 运行 `python scripts/step4_scorecard.py`(**每周跑一次**景气度得分卡,滚动快照积累;
+   攒 6 期≈1.5 个月后做"得分 → 未来 5日/20日收益"双口径 IC 检验,通过才考虑作为选券加成项)
 2. 读 `artifacts/tushare_repro/strategy_returns.csv` 最后一行的 `holdings`/`weights` → 得到目标组合
 3. 读 `artifacts/tushare_repro/filtered_strategy.csv` 最后一行 `exposure` → 得到总仓位(100%/50%/0),总仓位即时变化都读该文件
 4. **资金流验证器监控**(`fundflow_check.csv`,`--fundflow-warn 0.10`):
