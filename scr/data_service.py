@@ -164,6 +164,7 @@ def get_industry_etf_universe(
     fit_end_date: Optional[str] = None,
     pure_industry_only: bool = False,
     max_per_sector: Optional[int] = 1,
+    seat_purity: bool = False,
 ) -> pd.DataFrame:
     fund_basic = _query_with_retry(
         pro,
@@ -251,14 +252,42 @@ def get_industry_etf_universe(
             sector_keys = sector_keys.mask(cond, sector_name)
         df = df.loc[sector_keys.notna()].copy()
         df["sector_key"] = sector_keys.loc[df.index].values
-        if max_per_sector is not None:
+        if max_per_sector is not None and seat_purity:
+            # 实验#12 纯度优先占席(--seat-purity 开启;实测为负结果,默认关闭):
+            # 基准指数若在剔除本类关键词后仍命中其它类别的关键词,视为混合指数
+            # (如"科技传媒通信150"),占席时排到纯指数之后;全类皆混合则退化为
+            # 原"最早上市"规则。实测:纯度优先 +395% → +126%,不采纳。
+            cat_tokens = {name: pat.split("|") for name, pat in SECTOR_PATTERNS}
+            # 复合基准形如"XX指数收益率×95%+银行活期存款利率(税后)×5%",
+            # 取首个"×"前的主指数部分,避免公式文本(如"银行活期存款利率")误触关键词
+            btxt = df["benchmark"].fillna(df["name"]).astype(str).str.split("×").str[0]
+
+            def _pure_flag(bench: str, own: str) -> int:
+                own_toks = sorted(cat_tokens.get(own, []), key=len, reverse=True)
+                if not any(t in bench for t in own_toks):
+                    return 0
+                residual = bench
+                for t in own_toks:
+                    residual = residual.replace(t, "")
+                for other, toks in cat_tokens.items():
+                    if other != own and any(t in residual for t in toks):
+                        return 0
+                return 1
+
+            df["pure_index"] = [
+                _pure_flag(b, s) for b, s in zip(btxt, df["sector_key"])
+            ]
             df = (
-                df.sort_values(["sector_key", "list_date", "ts_code"])
+                df.sort_values(
+                    ["sector_key", "pure_index", "list_date", "ts_code"],
+                    ascending=[True, False, True, True],
+                )
                 .groupby("sector_key", as_index=False)
                 .head(max_per_sector)
                 .sort_values(["list_date", "ts_code"])
                 .reset_index(drop=True)
             )
+            df = df.drop(columns=["pure_index"])
 
     if pure_industry_only:
         base = pd.Series("", index=df.index)

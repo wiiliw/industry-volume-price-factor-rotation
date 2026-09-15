@@ -535,6 +535,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--strict-universe", action="store_true", default=True)
     parser.add_argument("--latest-if-missing", action="store_true", default=True)
     parser.add_argument("--pure-industry-only", action="store_true", default=False)
+    parser.add_argument(
+        "--seat-purity",
+        action="store_true",
+        default=False,
+        help="占席纯度优先(实验#12,负结果默认关):席位优先选基准不含其它类别关键词的最早ETF",
+    )
     return parser.parse_args()
 
 
@@ -564,6 +570,7 @@ def main() -> None:
         fit_end_date=args.train_end,
         pure_industry_only=args.pure_industry_only,
         max_per_sector=pool_max_per_sector,
+        seat_purity=args.seat_purity,
     )
     universe.to_csv(output_dir / "universe.csv", index=False)
 
