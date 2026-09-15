@@ -288,6 +288,14 @@ def get_industry_etf_universe(
                 .reset_index(drop=True)
             )
             df = df.drop(columns=["pure_index"])
+        elif max_per_sector is not None:
+            df = (
+                df.sort_values(["sector_key", "list_date", "ts_code"])
+                .groupby("sector_key", as_index=False)
+                .head(max_per_sector)
+                .sort_values(["list_date", "ts_code"])
+                .reset_index(drop=True)
+            )
 
     if pure_industry_only:
         base = pd.Series("", index=df.index)
